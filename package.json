@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "postinstall": "aws s3 cp --no-sign-request s3://elevation-tiles-prod/4/ terrarium/4/",
+    "start": "http-server . -g -o /sphere/sphere.html"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

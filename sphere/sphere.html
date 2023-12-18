@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            body {
+                margin: 0;
+            }
+            canvas {
+                display: block;
+                width: 100vw;
+                height: 100vh;
+                background-color: cornflowerblue;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas>
+            <terrarium-image />
+            <gl-texture binding="1" texture-min-filter="NEAREST" texture-mag-filter="NEAREST">
+                <gl-texture-image image="terrarium-image">
+                </gl-texture-image>
+            </gl-texture>
+            <gl-shader type="VERTEX_SHADER">
+                attribute vec3 pos;
+                varying vec3 st;
+                varying vec3 uv;
+                void main() {
+                    st = pos;
+                    uv = pos*0.5+0.5;
+                    gl_Position = vec4(pos, 1.0);
+                }
+            </gl-shader>
+            <gl-shader type="FRAGMENT_SHADER">
+                precision mediump float;
+                varying vec3 uv;
+                varying vec3 st;
+                uniform sampler2D terrarium;
+                float terrariumElevation(vec3 color) {
+                    vec3 encoded = color * 256.0;
+                    float elevation = ((encoded.r * 256.0 + encoded.g + (encoded.b / 256.0)) - 32768.0);
+                    return elevation;
+                }
+                vec3 terrariumColor(float elevation) {
+                    float v = elevation + 32768.0;
+                    vec3 encoded = vec3(
+                        floor(v/256.0),
+                        floor(mod(v,256.0)),
+                        floor((v-floor(v))*256.0)
+                    );
+                    vec3 color = encoded / 256.0;
+                    return color;
+                }
+                float terrariumNormal(float elevation) {
+                    float normal = (elevation + 11000.0) / (8900.0 + 11000.0);
+                    return normal;
+                }
+                void main() {
+                    vec3 color = uv;
+                    color *= terrariumNormal(terrariumElevation(texture2D(terrarium, uv.xy*vec2(1.0,-1.0)).rgb));
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            </gl-shader>
+            <gl-buffer target="ARRAY_BUFFER" usage="STATIC_DRAW">
+                -1 +1 0
+                -1 -1 0
+                +1 +1 0
+                +1 -1 0
+            </gl-buffer>
+            <gl-program>
+                <gl-vertex-attrib name="pos" count="3" type="FLOAT" />
+                <gl-uniform-binding name="terrarium" binding="1" />
+                <gl-draw-arrays mode="TRIANGLE_STRIP" count="4"></gl-draw>
+            </gl-program>
+        </canvas>
+        <script src="sphere.js"></script>
+        <script src="gl.js"></script>
+        
+    </body>
+</html>
