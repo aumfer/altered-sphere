@@ -4,37 +4,93 @@
         <style>
             body {
                 margin: 0;
+                background-color: cornflowerblue;
             }
-            canvas {
+            video,img {
+                z-index: -1;
+            }
+            canvas,svg {
                 display: block;
                 width: 100vw;
                 height: 100vh;
-                background-color: cornflowerblue;
+                position: absolute;
+                left: 0;
+                top: 0;
+                z-index: 1;
+            }
+            canvas {
+                width: 50vw;
+                height: 50vh;
+                margin: 25vh 25vw;
+
+                background: #fff;
+                background: radial-gradient(circle at center, red 0, blue, black 100%);
+            }
+            form {
+                z-index: 2;
+                margin: 1em;
             }
         </style>
+        <script src="document-body.js"></script>
+        <script src="media-stream.js"></script>
+        <script src="perspective-camera.js"></script>
+        <script src="terrarium-image.js"></script>
+        <script src="web-gl.js"></script>
+        <script src="web-audio.js"></script>
+        <script src="geometry-sphere.js"></script>
     </head>
     <body>
-        <canvas>
+        <web-audio _resume>
+        <perspective-camera></perspective-camera>
+        <document-body mouse window target="svg circle" client-x="cx" client-y="cy" />
+        <video id="my-video">
+            <media-stream video camera />
+        </video>
+        <audio id="my-microphone">
+            <media-stream audio microphone />
+        </audio>
+
+        <div style="display: none;">
             <terrarium-image />
-            <gl-texture binding="1" texture-min-filter="NEAREST" texture-mag-filter="NEAREST">
-                <gl-texture-image image="terrarium-image">
-                </gl-texture-image>
-            </gl-texture>
-            <gl-shader type="VERTEX_SHADER">
+        </div>
+
+        <canvas>
+            <geometry-sphere></geometry-sphere>
+            <web-gl id="quad-position">
+                -1 +1 0
+                -1 -1 0
+                +1 +1 0
+                +1 -1 0
+            </web-gl>
+            <web-gl id="quad-uv">
+                -1 +1 0
+                -1 -1 0
+                +1 +1 0
+                +1 -1 0
+            </web-gl>
+            <web-gl id="quad-normal">
+                -1 +1 0
+                -1 -1 0
+                +1 +1 0
+                +1 -1 0
+            </web-gl>
+            <web-gl id="vertex-shader">
+                uniform mat4 modelViewMatrix;
+                uniform mat4 projectionMatrix;
                 attribute vec3 pos;
-                varying vec3 st;
-                varying vec3 uv;
+                attribute vec3 nor;
+                varying vec2 uv;
+                varying vec3 rd;
                 void main() {
-                    st = pos;
-                    uv = pos*0.5+0.5;
-                    gl_Position = vec4(pos, 1.0);
+                    vec4 p = vec4(pos, 1.0);
+                    p.z += 1.0;
+                    uv = p.xy*0.5+0.5;
+                    rd = -vec3(nor.xy, 1.0);
+                    gl_Position = p;
                 }
-            </gl-shader>
-            <gl-shader type="FRAGMENT_SHADER">
-                precision mediump float;
-                varying vec3 uv;
-                varying vec3 st;
-                uniform sampler2D terrarium;
+            </web-gl>
+            <web-gl id="fragment-shader">
+                const vec3 WGS_84 = vec3(6.378137,6.356752,6.378137);
                 float terrariumElevation(vec3 color) {
                     vec3 encoded = color * 256.0;
                     float elevation = ((encoded.r * 256.0 + encoded.g + (encoded.b / 256.0)) - 32768.0);
@@ -54,26 +110,101 @@
                     float normal = (elevation + 11000.0) / (8900.0 + 11000.0);
                     return normal;
                 }
+
+                uniform sampler2D terrarium;
+                uniform sampler2D video;
+                varying vec2 uv;
+                varying vec3 rd;
+                //out vec4 gl_FragColor;
                 void main() {
-                    vec3 color = uv;
-                    color *= terrariumNormal(terrariumElevation(texture2D(terrarium, uv.xy*vec2(1.0,-1.0)).rgb));
-                    gl_FragColor = vec4(color, 1.0);
+                    vec3 nor = normalize(-rd);
+                    vec3 pos = nor * WGS_84;
+                    vec2 ll = vec2(cos(nor.x),sin(nor.y));
+                    gl_FragColor = vec4(uv, 0.5, 1.0);
+                    //gl_FragColor = vec4(nor*0.5+0.5, 1.0);
+                    //gl_FragColor = vec4(ll, 0.5, 1.0);
+                    gl_FragColor = vec4(terrariumNormal(terrariumElevation(texture2D(terrarium, uv+vec2(0.0,1.0)).rgb)),uv,1.0);
                 }
-            </gl-shader>
-            <gl-buffer target="ARRAY_BUFFER" usage="STATIC_DRAW">
-                -1 +1 0
-                -1 -1 0
-                +1 +1 0
-                +1 -1 0
-            </gl-buffer>
-            <gl-program>
-                <gl-vertex-attrib name="pos" count="3" type="FLOAT" />
-                <gl-uniform-binding name="terrarium" binding="1" />
-                <gl-draw-arrays mode="TRIANGLE_STRIP" count="4"></gl-draw>
-            </gl-program>
+            </web-gl>
+            <web-gl shader="#vertex-shader" type="VERTEX_SHADER">
+            </web-gl>
+            <web-gl shader="#fragment-shader" type="FRAGMENT_SHADER">
+            </web-gl>
+
+            <web-gl quad-position buffer="#quad-position" target="ARRAY_BUFFER" usage="STATIC_DRAW">
+            </web-gl>
+            <web-gl buffer="#quad-uv" target="ARRAY_BUFFER" usage="STATIC_DRAW">
+            </web-gl>
+            <web-gl quad-normal buffer="#quad-normal" target="ARRAY_BUFFER" usage="STATIC_DRAW">
+            </web-gl>
+
+            <web-gl Uint16Array buffer="geometry-sphere>[index-buffer]" target="ELEMENT_ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
+            <web-gl sphere-position buffer="geometry-sphere>[position-buffer]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
+            <web-gl sphere-normal buffer="geometry-sphere>[normal-buffer]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
+            <web-gl buffer="geometry-sphere>[uv-buffer]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
+
+            <web-gl texture="1" image="terrarium-image>img" generate-mipmap texture-wrap-s="REPEAT" texture-wrap-t="MIRRORED_REPEAT" texture-min-filter="NEAREST" texture-mag-filter="NEAREST">
+            </web-gl>
+            <web-gl texture="2" video="#my-video" texture-min-filter="NEAREST" texture-mag-filter="NEAREST"></web-gl>
+
+            
+            <web-gl program default-framebuffer>
+                
+                <web-gl uniform name="terrarium" 1i value 0="1" />
+                <web-gl uniform name="video" 1i value 0="2" />
+                <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
+                <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
+                <web-gl vertex="[quad-position]" name="pos" count="3" type="FLOAT" />
+                <web-gl vertex="[quad-normal]" name="nor" count="3" type="FLOAT" />
+                <web-gl draw-arrays mode="TRIANGLE_STRIP" count="4" />
+            </web-gl>
+            <web-gl program default-framebuffer>
+                
+                <web-gl uniform name="terrarium" 1i value 0="1" />
+                <web-gl uniform name="video" 1i value 0="2" />
+                <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
+                <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
+                <web-gl _vertex="[sphere-position]" name="pos" count="3" type="FLOAT" />
+                <web-gl vertex="[sphere-normal]" name="pos" count="3" type="FLOAT" />
+                <web-gl _draw-elements mode="TRIANGLES" count="2880" type="UNSIGNED_SHORT" />
+            </web-gl>
         </canvas>
-        <script src="sphere.js"></script>
-        <script src="gl.js"></script>
         
+        <svg>
+            <defs>
+                <pattern></pattern>
+            </defs>
+            <circle cx="600" cy="200" r="3"
+        fill="red" stroke="blue" stroke-width="2">
+            </circle>
+            <rect x="50" y="50" width="200" height="200" fill="red" stroke="blue" stroke-width="2">
+                <circle r="50" fill="blue" stroke="red"></circle>
+            </rect>
+        </svg>
+        
+        <form>
+            <label for="location">location</label>
+            <input name="location" value="test" placeholder="placeholder" />
+        </form>
+
+
+        <video>
+            <media-stream canvas />
+        </video>
+        <video>
+            <media-stream display />
+        </video>
+        
+
+            <web-audio element="[my-element]"></web-audio>
+            <web-audio stream="[my-microphone]"></web-audio>
+            <web-audio buffer></web-audio>
+            <web-audio oscillator></web-audio>
+            <media-devices>
+                <li kind></li>
+            </media-devices>
+        </web-audio>
+
+
     </body>
 </html>

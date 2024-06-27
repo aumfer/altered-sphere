@@ -1,0 +1,60 @@
+<div class="screen">
+</div>
+<div class="screen">
+    <three-js scene perspective-camera fov="93" position-y="5" position-z="7">
+        <script type="text/glsl" id="vertex-shader">
+            //attribute vec3 position;
+            //attribute vec3 normal;
+            //attribute vec2 uv;
+
+            varying vec3 fposition;
+            varying vec3 fnormal;
+            varying vec2 fuv;
+            void main() {
+                vec4 world = modelViewMatrix * vec4(position, 1.0);
+                fposition = world.xyz;
+                fnormal = normal;
+                fuv = uv;
+                gl_Position = projectionMatrix * world;
+            }
+        </script>
+        <script type="text/glsl" id="fragment-shader">
+            uniform vec3 color;
+            uniform sampler2D terrarium;
+            varying vec3 fposition;
+            varying vec3 fnormal;
+            varying vec2 fuv;
+            void main() {
+                //gl_FragDepth = fposition.z;
+                gl_FragColor = vec4(fnormal,1.0);
+            }
+        </script>
+        <three-js texture="terrarium-image>img" unit="3" />
+        <three-js mesh
+            plane-geometry width="13" height="13"
+            shader-material color="#ff0000" vertex-shader="#vertex-shader" fragment-shader="#fragment-shader" />
+        <three-js mesh scale-x="6.378137" scale-y="6.356752" scale-z="6.378137"
+            sphere-geometry radius="1"
+            shader-material color="#00ff00" terrarium="3" vertex-shader="#vertex-shader" fragment-shader="#fragment-shader" />
+    </three-js>
+</div>
+<style>
+    body {
+        margin: 0;
+        background: #000;
+    }
+    .screen {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 50vw;
+        height: 50vh;
+        margin: 25vh 25vw;
+
+        background: #fff;
+        background: radial-gradient(circle at center, red 0, blue, black 100%);
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.js"></script>
+<script src="sphere/three-js.js"></script>

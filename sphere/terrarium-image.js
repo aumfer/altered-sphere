@@ -4,6 +4,10 @@ customElements.define('terrarium-image', class extends HTMLElement {
         const x = 0;
         const y = 0;
         const z = 16;
+        this.setAttribute('x', `${16}`)
+        this.setAttribute('y', `${16}`)
+        this.setAttribute('width', `${16*256}`)
+        this.setAttribute('height', `${16*256}`)
         for (var i = 0; i < 16; ++i) {
             for (var j = 0; j < 16; ++j) {
                 const image = document.createElement('img')
