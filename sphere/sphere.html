@@ -43,7 +43,7 @@
         <web-audio _resume>
         <perspective-camera></perspective-camera>
         <document-body mouse window target="svg circle" client-x="cx" client-y="cy" />
-        <video id="my-video">
+        <video id="my-video" style="display: none;">
             <media-stream video camera />
         </video>
         <audio id="my-microphone">
@@ -56,24 +56,27 @@
 
         <canvas>
             <geometry-sphere></geometry-sphere>
-            <web-gl id="quad-position">
-                -1 +1 0
-                -1 -1 0
-                +1 +1 0
-                +1 -1 0
-            </web-gl>
-            <web-gl id="quad-uv">
-                -1 +1 0
-                -1 -1 0
-                +1 +1 0
-                +1 -1 0
-            </web-gl>
-            <web-gl id="quad-normal">
-                -1 +1 0
-                -1 -1 0
-                +1 +1 0
-                +1 -1 0
-            </web-gl>
+            <geometry-quad>
+                <span quad-position>
+                    -1 +1 0
+                    -1 -1 0
+                    +1 +1 0
+                    +1 -1 0
+                </span>
+                <span quad-uv>
+                    -1 +1 0
+                    -1 -1 0
+                    +1 +1 0
+                    +1 -1 0
+                </span>
+                <span quad-normal>
+                    0 0 -1
+                    0 0 -1
+                    0 0 -1
+                    0 0 -1
+                </span>
+            </geometry-quad>
+            
             <web-gl id="vertex-shader">
                 uniform mat4 modelViewMatrix;
                 uniform mat4 projectionMatrix;
@@ -83,34 +86,13 @@
                 varying vec3 rd;
                 void main() {
                     vec4 p = vec4(pos, 1.0);
-                    p.z += 1.0;
+                    //p.z += 1.0;
                     uv = p.xy*0.5+0.5;
-                    rd = -vec3(nor.xy, 1.0);
+                    rd = nor;
                     gl_Position = p;
                 }
             </web-gl>
             <web-gl id="fragment-shader">
-                const vec3 WGS_84 = vec3(6.378137,6.356752,6.378137);
-                float terrariumElevation(vec3 color) {
-                    vec3 encoded = color * 256.0;
-                    float elevation = ((encoded.r * 256.0 + encoded.g + (encoded.b / 256.0)) - 32768.0);
-                    return elevation;
-                }
-                vec3 terrariumColor(float elevation) {
-                    float v = elevation + 32768.0;
-                    vec3 encoded = vec3(
-                        floor(v/256.0),
-                        floor(mod(v,256.0)),
-                        floor((v-floor(v))*256.0)
-                    );
-                    vec3 color = encoded / 256.0;
-                    return color;
-                }
-                float terrariumNormal(float elevation) {
-                    float normal = (elevation + 11000.0) / (8900.0 + 11000.0);
-                    return normal;
-                }
-
                 uniform sampler2D terrarium;
                 uniform sampler2D video;
                 varying vec2 uv;
@@ -119,55 +101,57 @@
                 void main() {
                     vec3 nor = normalize(-rd);
                     vec3 pos = nor * WGS_84;
-                    vec2 ll = vec2(cos(nor.x),sin(nor.y));
-                    gl_FragColor = vec4(uv, 0.5, 1.0);
+                    //vec2 ll = vec2(cos(nor.x),sin(nor.y));
+
+                    vec3 p, N;
+                    float t = isect_sphere(vec3(uv,1.0), rd, vec4(0.0,0.0,0.0,1.0), p, N);
+                    vec2 ll = vec2(cos(p.x), sin(p.y));
+
+                    gl_FragColor = vec4(uv, t, 1.0);
                     //gl_FragColor = vec4(nor*0.5+0.5, 1.0);
-                    //gl_FragColor = vec4(ll, 0.5, 1.0);
-                    gl_FragColor = vec4(terrariumNormal(terrariumElevation(texture2D(terrarium, uv+vec2(0.0,1.0)).rgb)),uv,1.0);
+                    gl_FragColor = vec4(ll, t, 1.0);
+                    gl_FragColor = mix(
+                        vec4(terrariumNormal(terrariumElevation(texture2D(terrarium, ll+vec2(0.0,1.0)).rgb)),uv,1.0),
+                        vec4(texture2D(video, uv).rgb, 0.5),
+                        step(0.0, -t)
+                    );
                 }
             </web-gl>
-            <web-gl shader="#vertex-shader" type="VERTEX_SHADER">
-            </web-gl>
-            <web-gl shader="#fragment-shader" type="FRAGMENT_SHADER">
-            </web-gl>
+            <web-gl shader="#vertex-shader" type="VERTEX_SHADER" />
+            <web-gl shader="#fragment-shader" 0="toys.glsl" type="FRAGMENT_SHADER" />
 
-            <web-gl quad-position buffer="#quad-position" target="ARRAY_BUFFER" usage="STATIC_DRAW">
-            </web-gl>
-            <web-gl buffer="#quad-uv" target="ARRAY_BUFFER" usage="STATIC_DRAW">
-            </web-gl>
-            <web-gl quad-normal buffer="#quad-normal" target="ARRAY_BUFFER" usage="STATIC_DRAW">
-            </web-gl>
+            <web-gl x-quad-position buffer="[quad-position]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            <web-gl x-quad-uv buffer="[quad-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            <web-gl x-quad-normal buffer="[quad-normal]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
 
-            <web-gl Uint16Array buffer="geometry-sphere>[index-buffer]" target="ELEMENT_ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
-            <web-gl sphere-position buffer="geometry-sphere>[position-buffer]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
-            <web-gl sphere-normal buffer="geometry-sphere>[normal-buffer]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
-            <web-gl buffer="geometry-sphere>[uv-buffer]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></web-gl>
+            <web-gl Uint16Array x-sphere-index buffer="[sphere-index]" target="ELEMENT_ARRAY_BUFFER" usage="STATIC_DRAW"/>
+            <web-gl x-sphere-position buffer="[sphere-position]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            <web-gl x-sphere-normal buffer="[sphere-normal]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            <web-gl x-sphere-uv buffer="[sphere-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
 
-            <web-gl texture="1" image="terrarium-image>img" generate-mipmap texture-wrap-s="REPEAT" texture-wrap-t="MIRRORED_REPEAT" texture-min-filter="NEAREST" texture-mag-filter="NEAREST">
-            </web-gl>
-            <web-gl texture="2" video="#my-video" texture-min-filter="NEAREST" texture-mag-filter="NEAREST"></web-gl>
+            <web-gl x-terrarium-texture texture unit="1" image="terrarium-image>img" generate-mipmap texture-wrap-s="REPEAT" texture-wrap-t="MIRRORED_REPEAT" texture-min-filter="NEAREST" texture-mag-filter="NEAREST" />
+            <web-gl x-webcam-texture texture unit="2" video="#my-video" texture-min-filter="NEAREST" texture-mag-filter="NEAREST" texture-wrap-s="CLAMP_TO_EDGE" texture-wrap-t="CLAMP_TO_EDGE" />
 
+            <web-gl front framebuffer texture image width="64" height="64" />
+            <web-gl back framebuffer texture image width="64" height="64" />
             
-            <web-gl program default-framebuffer>
-                
-                <web-gl uniform name="terrarium" 1i value 0="1" />
-                <web-gl uniform name="video" 1i value 0="2" />
-                <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
-                <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
-                <web-gl vertex="[quad-position]" name="pos" count="3" type="FLOAT" />
-                <web-gl vertex="[quad-normal]" name="nor" count="3" type="FLOAT" />
-                <web-gl draw-arrays mode="TRIANGLE_STRIP" count="4" />
-            </web-gl>
-            <web-gl program default-framebuffer>
-                
-                <web-gl uniform name="terrarium" 1i value 0="1" />
-                <web-gl uniform name="video" 1i value 0="2" />
-                <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
-                <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
-                <web-gl _vertex="[sphere-position]" name="pos" count="3" type="FLOAT" />
-                <web-gl vertex="[sphere-normal]" name="pos" count="3" type="FLOAT" />
-                <web-gl _draw-elements mode="TRIANGLES" count="2880" type="UNSIGNED_SHORT" />
-            </web-gl>
+            <web-gl program default-framebuffer/>
+            <web-gl sampler name="terrarium" source="[x-terrarium-texture]" />
+            <web-gl sampler name="video" source="[x-webcam-texture]" />
+            <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
+            <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
+            <web-gl vertex="[x-quad-position]" name="pos" count="3" type="FLOAT" />
+            <web-gl vertex="[x-quad-normal]" name="nor" count="3" type="FLOAT" />
+            <web-gl draw mode="TRIANGLE_STRIP" count="4" />
+
+            <web-gl program default-framebuffer />
+            <web-gl sampler name="terrarium" source="[x-terrarium-texture]" />
+            <web-gl sampler name="video" source="[x-webcam-texture]" />
+            <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
+            <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
+            <web-gl vertex="[x-sphere-position]" name="pos" count="3" type="FLOAT" />
+            <web-gl vertex="[x-sphere-normal]" name="nor" count="3" type="FLOAT" />
+            <web-gl draw elements="[x-sphere-index]" mode="TRIANGLES" count="2880" type="UNSIGNED_SHORT" />
         </canvas>
         
         <svg>

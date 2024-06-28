@@ -80,22 +80,22 @@ customElements.define('geometry-sphere', class extends HTMLElement {
 		}
 
         const vElement = document.createElement('span')
-        vElement.toggleAttribute('position-buffer', true)
+        vElement.toggleAttribute('sphere-position', true)
         vElement.innerHTML = vertices.join(' ')
         this.appendChild(vElement)
 
         const nElement = document.createElement('span')
-        nElement.toggleAttribute('normal-buffer', true)
+        nElement.toggleAttribute('sphere-normal', true)
         nElement.innerHTML = normals.join(' ')
         this.appendChild(nElement)
 
         const uvElement = document.createElement('span')
-        uvElement.toggleAttribute('uv-buffer', true)
+        uvElement.toggleAttribute('sphere-uv', true)
         uvElement.innerHTML = uvs.join(' ')
         this.appendChild(uvElement)
 
         const iElement = document.createElement('span')
-        iElement.toggleAttribute('index-buffer', true)
+        iElement.toggleAttribute('sphere-index', true)
         iElement.innerHTML = indices.join(' ')
         this.appendChild(iElement)
 

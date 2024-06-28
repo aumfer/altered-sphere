@@ -8,6 +8,7 @@ customElements.define('web-gl', class extends HTMLElement {
         this.gl = gl
 
         //console.log(this.getAttributeNames().join(' '))
+        //this.bind = Promise.resolve()
 
         if (this.hasAttribute('texture')) {
             this.texture = gl.createTexture()
@@ -15,10 +16,22 @@ customElements.define('web-gl', class extends HTMLElement {
             const target = this.getAttribute('target') || 'TEXTURE_2D'
             this.target = target
 
-            const textureUnit = Number.parseInt(this.getAttribute('texture') || '0')
-            this.activeTexture = textureUnit
+            if (this.hasAttribute('unit')) {
+                const textureUnit = Number.parseInt(this.getAttribute('unit') || '0')
+                this.activeTexture = textureUnit
+            } else {
+                this.activeTexture = 0
+            }
 
-            this.glBind()
+            /*this.bind = this.bind.then((function bindTexture() {
+                gl.activeTexture(gl.TEXTURE0 + this.activeTexture)
+                gl.bindTexture(gl[this.target], this.texture)
+            }).bind(this))*/
+            this.addEventListener('gl-bind', (function bindTexture() {
+                gl.activeTexture(gl.TEXTURE0 + this.activeTexture)
+                gl.bindTexture(gl[this.target], this.texture)
+            }).bind(this))
+            this.dispatchEvent(new Event('gl-bind'))
 
             if (this.hasAttribute('texture-wrap-s')) {
                 gl.texParameteri(gl[target], gl.TEXTURE_WRAP_S, gl[this.getAttribute('texture-wrap-s')]);
@@ -49,7 +62,7 @@ customElements.define('web-gl', class extends HTMLElement {
 
                 function upload (image) {
                     if (!image.complete) throw 'incomplete image'
-                    this.glBind()
+                    this.dispatchEvent(new Event('gl-bind'))
                     const i = Number.parseInt(image.getAttribute('i') || '0')
                     const j = Number.parseInt(image.getAttribute('j') || '0')
                     gl.texSubImage2D(gl[this.target],
@@ -59,7 +72,6 @@ customElements.define('web-gl', class extends HTMLElement {
                         gl.RGBA,
                         gl.UNSIGNED_BYTE,
                         image)
-                    //gl.bindTexture(gl.TEXTURE_2D, 0)
                 }
 
             const imageSelector = this.getAttribute('image')
@@ -76,14 +88,15 @@ customElements.define('web-gl', class extends HTMLElement {
                 const uploads = []
                 document.querySelectorAll(imageSelector).forEach(i => uploads.push(new Promise(uploadImage.bind(this,i))))
                 this.upload = Promise.all(uploads)
+                if (!uploads.length) `no image ${imageSelector}`
                 if (this.hasAttribute('generate-mipmap')) {
                     this.generateMipmap = this.upload.then((function generateMipmap() {
-                        this.glBind()
-                        gl.generateMipmap(this.target)
+                        this.dispatchEvent(new Event('gl-bind'))
+                        gl.generateMipmap(gl[this.target])
                     }).bind(this))
                 }
             } else {
-                throw `no image ${imageSelector}`
+                // empty texture
             }
         }
         if (this.hasAttribute('video')) {
@@ -108,8 +121,7 @@ customElements.define('web-gl', class extends HTMLElement {
                 srcs.push(this.getAttribute('src'))
             }
             this.compile = Promise.all(['precision mediump float;\r\n',
-                document.querySelector(this.getAttribute('shader')).innerHTML,
-                Promise.resolve(this.textContent), ...srcs.map(src => new Promise((function fetchShader(onfetch) {
+                ...srcs.map(src => new Promise((function fetchShader(onfetch) {
                 const fetch = new XMLHttpRequest()
                 fetch.open('GET', src)
                 
@@ -119,7 +131,9 @@ customElements.define('web-gl', class extends HTMLElement {
                     }
                 }).bind(this))
                 fetch.send()
-            }).bind(this)))]).then((function compileShader(srcs) {
+            }).bind(this))),
+            document.querySelector(this.getAttribute('shader')).innerHTML,
+            Promise.resolve(this.textContent)]).then((function compileShader(srcs) {
                 const src = srcs.join('\r\n')
                 gl.shaderSource(shader, src)
                 gl.compileShader(shader)
@@ -140,6 +154,10 @@ customElements.define('web-gl', class extends HTMLElement {
 
             const target = this.getAttribute('target')
             this.target = target
+
+            this.addEventListener('gl-bind', (function bindBuffer() {
+                gl.bindBuffer(gl[this.target], this.buffer)
+            }).bind(this))
             
             const sourceQuery = this.getAttribute('buffer')
             const sourceElement = document.querySelector(sourceQuery)
@@ -150,7 +168,7 @@ customElements.define('web-gl', class extends HTMLElement {
 
             //upload
             function uploadBuffer(str) {
-                this.glBind()
+                this.dispatchEvent(new Event('gl-bind'))
                 const arr = str.split(/\s+/) // todo fixme
                 let data
                 if (this.hasAttribute('Uint16Array')) {
@@ -186,6 +204,7 @@ customElements.define('web-gl', class extends HTMLElement {
             const program = gl.createProgram()
             this.program = program
 
+            //
             const vertexShader = document.querySelector('[shader][type=VERTEX_SHADER]')
             const fragmentShader = document.querySelector('[shader][type=FRAGMENT_SHADER')
 
@@ -203,12 +222,23 @@ customElements.define('web-gl', class extends HTMLElement {
                     console.log(linkErrLog || 'link error');
                 } else {
                     this.complete = true;
+                    this.addEventListener('gl-bind', (function bindProgram() {
+                        gl.useProgram(this.program)
+                    }).bind(this))
                 }
                 return program;
             }).bind(this))
         }
         if (this.hasAttribute('draw')) {
             this.closest('[program]').link.then((function enableDraw(program) {
+                if (this.hasAttribute('elements')) {
+                    const elementsA = this.getAttribute('elements')
+                    const elments = document.querySelector(elementsA)
+
+                    this.addEventListener('gl-bind', (function bindIndex() {
+                        elments.dispatchEvent(new Event('gl-bind'))
+                    }).bind(this))
+                }
                 this.complete = true
             }).bind(this))
         }
@@ -216,24 +246,27 @@ customElements.define('web-gl', class extends HTMLElement {
             this.closest('[program]').link.then((function enableVertex(program) {
                 this.program = program
 
-                //this.buffer.glBind();
                 const vertexA = this.getAttribute('vertex')
                 const vertex = document.querySelector(vertexA)
                 if (!vertex) throw `no vertex ${vertexA}`
-                vertex.glBind()
     
                 const name = this.getAttribute('name')
                 const index = gl.getAttribLocation(program, name)
-                gl.enableVertexAttribArray(index)
+                
         
                 const type = this.getAttribute('type')
                 const count = Number.parseInt(this.getAttribute('count'));
-                gl.vertexAttribPointer(index, count, gl[type], false, 0, 0)
                 
+                
+                this.addEventListener('gl-bind', (function bindVertex() {
+                    vertex.dispatchEvent(new Event('gl-bind'))
+                    gl.enableVertexAttribArray(index)
+                    gl.vertexAttribPointer(index, count, gl[type], false, 0, 0)
+                }).bind(this))
                 this.complete = true
             }).bind(this))
         }
-        if (this.hasAttribute('uniform')) {
+        if (this.hasAttribute('uniform') || this.hasAttribute('sampler')) {
             this.closest('[program]').link.then((function locateUniform(program) {
                 const name = this.getAttribute('name')
                 const location = gl.getUniformLocation(program, name)
@@ -243,23 +276,36 @@ customElements.define('web-gl', class extends HTMLElement {
             }).bind(this))
         }
         if (this.hasAttribute('framebuffer')) {
-            this.framebuffer = gl.createFramebuffer()
-                this.glBind()
-                if (this.texture) {
-                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, this.texture, 0);    
+            const framebufferA = this.getAttribute('framebuffer')
+            if (framebufferA) {
+                const framebufferE = document.querySelector(framebufferA)
+                if (!framebufferE) throw `no framebuffer ${framebufferA}`
+                this.framebuffer = framebufferE.framebuffer
+            } else {
+                this.framebuffer = gl.createFramebuffer()
+            }
+            
+            this.addEventListener('gl-bind', (function bindFramebuffer() {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer)
+            }).bind(this))
+            this.dispatchEvent(new Event('gl-bind'))
+            if (this.texture) {
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, this.texture, 0);    
+            } else {
+                if (this.hasAttribute('framebuffer-texture')) {
+                    const texture = document.querySelector(this.getAttribute('framebuffer-texture')).texture
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, texture, 0);
                 } else {
-                    if (this.hasAttribute('framebuffer-texture')) {
-                        const texture = document.querySelector(this.getAttribute('framebuffer-texture')).texture
-                        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, texture, 0);
-                    } else {
-                        const texture = this.closest('texture')
-                        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, texture, 0);
-                    }
+                    const texture = this.closest('texture')
+                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, texture, 0);
                 }
-                //if (gl.checkFramebufferStatus(this.framebuffer) !== gl.FRAMEBUFFER_COMPLETE) throw `incomplete framebuffer`   
+            }
+            //if (gl.checkFramebufferStatus(this.framebuffer) !== gl.FRAMEBUFFER_COMPLETE) throw `incomplete framebuffer`   
         }
         if (this.hasAttribute('default-framebuffer')) {
-            this.framebuffer = null
+            this.addEventListener('gl-bind', (function bindDefaultFramebuffer() {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            }).bind(this))
         }
 
         this.count = 0
@@ -267,45 +313,19 @@ customElements.define('web-gl', class extends HTMLElement {
         this.frametime = Number.NaN
         requestAnimationFrame(() => this.frame())
     }
-    glBind() {
-        const gl = this.gl
-        if (this.texture) {
-            const target = this.target
-            const unit = this.activeTexture
-            const texture = this.texture
-            gl.activeTexture(gl.TEXTURE0 + unit);
-            gl.bindTexture(gl[target], texture);
-        }
-        if (this.buffer) {
-            const target = this.target
-            const buffer = this.buffer
-            gl.bindBuffer(gl[target], buffer)
-        }
-        if (this.program) {
-            const program = this.program
-            if (this.complete) {
-                gl.useProgram(program)
-            }
-        }
-        if (this.uniform) {
-            
-        }
-        if (this.framebuffer !== undefined) {
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer)
-        }
-        if (this.hasAttribute('draw')) {
-            //this.setAttribute('array', `${gl.getAttribute(gl.ARRAY_BUFFER_BINDING)}`)
-            //this.setAttribute('texture', `${gl.getAttribute(gl.TEXTURE_BINDING_2D)}`)
-        }
-    }
     frame() {
         const gl = this.gl
         const now = Date.now()
         this.frametime = now-this.time
         this.time = now
 
-        this.glBind()
+        this.dispatchEvent(new Event('gl-bind'))
 
+        if (this.hasAttribute('sampler') && this.complete) {
+            const sourceA = this.getAttribute('source')
+            const sourceElement = document.querySelector(sourceA)
+            gl.uniform1i(this.location, sourceElement.activeTexture)
+        }
         if (this.hasAttribute('uniform') && this.complete) {
             const {location} = this
             if (this.hasAttribute('1i')) {
@@ -462,17 +482,18 @@ customElements.define('web-gl', class extends HTMLElement {
                     this.video)
             }
         }
-        if (this.hasAttribute('draw-arrays')) {
+        if (this.hasAttribute('draw')) {
             //gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
-            const mode = this.getAttribute('mode')
-            const count = Number.parseInt(this.getAttribute('count'));
-            gl.drawArrays(gl[mode], 0, count)
-        }
-        if (this.hasAttribute('draw-elements')) {
-            const mode = this.getAttribute('mode')
-            const count = Number.parseInt(this.getAttribute('count'));
-            const type = this.getAttribute('type')
-            gl.drawElements(gl[mode], count, gl[type], 0);
+            if (this.hasAttribute('elements')) {
+                const mode = this.getAttribute('mode')
+                const count = Number.parseInt(this.getAttribute('count'));
+                const type = this.getAttribute('type')
+                gl.drawElements(gl[mode], count, gl[type], 0);
+            } else {
+                const mode = this.getAttribute('mode')
+                const count = Number.parseInt(this.getAttribute('count'));
+                gl.drawArrays(gl[mode], 0, count)
+            }
         }
 
         this.count = (this.count + 1) % 2;
