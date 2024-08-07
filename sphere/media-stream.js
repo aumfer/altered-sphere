@@ -5,9 +5,33 @@ customElements.define('media-stream', class extends HTMLElement {
             videoElement.onloadedmetadata = () => {
                 videoElement.play();
             };
+
             if (this.hasAttribute('camera')) {
                 navigator.mediaDevices.getUserMedia({video:true}).then((function userMedia(stream) {
                     videoElement.srcObject = stream
+
+                    // stream jpegs up to segment-anything-2
+                    /*const acanvas = document.createElement('canvas')
+                    document.body.appendChild(acanvas)
+                    const acontext = acanvas.getContext('2d')
+
+                    const [track] = stream.getVideoTracks();
+                    const image = new ImageCapture(track)
+                    const xhr = new XMLHttpRequest()
+                    xhr.open('POST', 'http://localhost:5000')
+                    function meta() {
+                        image.grabFrame().then((bmp) => {
+                            acanvas.width = bmp.width
+                            acanvas.height = bmp.height
+                            acontext.drawImage(bmp, 0, 0, bmp.width, bmp.height)
+                            acanvas.toBlob(jpeg => {
+                                xhr.send(jpeg)
+                                
+                            }, 'image/jpeg')
+                        })
+                        //requestAnimationFrame(meta);
+                    }
+                    setTimeout(()=>requestAnimationFrame(meta),500)*/
                 }).bind(this)).catch((function getUserMediaError(e) {
                     console.log(`getUserMedia error ${e}`)
                 }).bind(this))
@@ -24,7 +48,7 @@ customElements.define('media-stream', class extends HTMLElement {
                 document.body.addEventListener('click', onTransientActivationFromUserGesture)
             }
             if (this.hasAttribute('canvas')) {
-                const stream = document.querySelector('canvas').captureStream(25)
+                const stream = document.querySelector(this.getAttribute('canvas')||'canvas').captureStream(25)
                 videoElement.srcObject = stream
             }
         }
