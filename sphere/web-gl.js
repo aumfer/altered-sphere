@@ -45,6 +45,30 @@ customElements.define('web-gl', class extends HTMLElement {
             if (this.hasAttribute('texture-mag-filter')) {
                 gl.texParameteri(gl[target], gl.TEXTURE_MAG_FILTER, gl[this.getAttribute('texture-mag-filter')]);
             }
+
+            const textureA = this.getAttribute('texture')
+            if (textureA) {
+                const textureE = document.querySelector(textureA)
+                if (!textureE) throw `no texture data ${textureA}`
+                
+                const width = Number.parseInt(this.getAttribute('width') || '4096')
+                const height = Number.parseInt(this.getAttribute('height') || '4096')
+    
+                // todo
+                const str = textureE.innerHTML
+                const arr = str.split(/\s+/) // todo fixme
+                let data = Uint8Array.from(arr.filter(s=>s.length).map(function parseFloat(s) {
+                    return Number.parseInt(s)
+                }))
+                gl.texImage2D(gl[this.target], 0,
+                    gl.RGBA,
+                    width,
+                    height,
+                    0,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    data)
+            }
         }
         if (this.hasAttribute('image')) {
             const width = Number.parseInt(this.getAttribute('width') || '4096')
@@ -162,9 +186,6 @@ customElements.define('web-gl', class extends HTMLElement {
             const sourceQuery = this.getAttribute('buffer')
             const sourceElement = document.querySelector(sourceQuery)
             if (!sourceElement) throw `no buffer ${sourceQuery}`
-            // todo remove
-            sourceElement.buffer = buffer
-            sourceElement.target = target
 
             //upload
             function uploadBuffer(str) {
@@ -205,8 +226,10 @@ customElements.define('web-gl', class extends HTMLElement {
             this.program = program
 
             //
-            const vertexShader = document.querySelector('[shader][type=VERTEX_SHADER]')
-            const fragmentShader = document.querySelector('[shader][type=FRAGMENT_SHADER')
+            const vertexShaderA = this.getAttribute('vertex-shader')||'[shader][type=VERTEX_SHADER]'
+            const vertexShader = document.querySelector(vertexShaderA)
+            const fragmentShaderA = this.getAttribute('fragment-shader')||'[shader][type=FRAGMENT_SHADER]'
+            const fragmentShader = document.querySelector(fragmentShaderA)
 
             this.link = Promise.all([
                 vertexShader.compile,
@@ -233,10 +256,11 @@ customElements.define('web-gl', class extends HTMLElement {
             this.closest('[program]').link.then((function enableDraw(program) {
                 if (this.hasAttribute('elements')) {
                     const elementsA = this.getAttribute('elements')
-                    const elments = document.querySelector(elementsA)
+                    const elementsE = document.querySelector(elementsA)
+                    if (!elementsE) throw `no elements ${elementsA}`
 
                     this.addEventListener('gl-bind', (function bindIndex() {
-                        elments.dispatchEvent(new Event('gl-bind'))
+                        elementsE.dispatchEvent(new Event('gl-bind'))
                     }).bind(this))
                 }
                 this.complete = true
@@ -276,14 +300,7 @@ customElements.define('web-gl', class extends HTMLElement {
             }).bind(this))
         }
         if (this.hasAttribute('framebuffer')) {
-            const framebufferA = this.getAttribute('framebuffer')
-            if (framebufferA) {
-                const framebufferE = document.querySelector(framebufferA)
-                if (!framebufferE) throw `no framebuffer ${framebufferA}`
-                this.framebuffer = framebufferE.framebuffer
-            } else {
-                this.framebuffer = gl.createFramebuffer()
-            }
+            this.framebuffer = gl.createFramebuffer()
             
             this.addEventListener('gl-bind', (function bindFramebuffer() {
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer)
@@ -292,19 +309,21 @@ customElements.define('web-gl', class extends HTMLElement {
             if (this.texture) {
                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, this.texture, 0);    
             } else {
-                if (this.hasAttribute('framebuffer-texture')) {
-                    const texture = document.querySelector(this.getAttribute('framebuffer-texture')).texture
-                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, texture, 0);
-                } else {
-                    const texture = this.closest('texture')
-                    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+0, gl.TEXTURE_2D, texture, 0);
-                }
+                throw `empty framebuffer unsupported`
             }
             //if (gl.checkFramebufferStatus(this.framebuffer) !== gl.FRAMEBUFFER_COMPLETE) throw `incomplete framebuffer`   
         }
         if (this.hasAttribute('default-framebuffer')) {
             this.addEventListener('gl-bind', (function bindDefaultFramebuffer() {
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            }).bind(this))
+        }
+        if (this.hasAttribute('bind-framebuffer')) {
+            const framebufferQuery = this.getAttribute('bind-framebuffer')
+            const framebufferE = document.querySelector(framebufferQuery)
+            if (!framebufferE) throw `no framebuffer ${framebufferQuery}`
+            this.addEventListener('gl-bind', (function bindDefaultFramebuffer() {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, framebufferE.framebuffer)
             }).bind(this))
         }
 

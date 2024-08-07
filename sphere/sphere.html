@@ -9,7 +9,7 @@
             video,img {
                 z-index: -1;
             }
-            canvas,svg {
+            canvas,svg,section {
                 display: block;
                 width: 100vw;
                 height: 100vh;
@@ -38,6 +38,11 @@
         <script src="web-gl.js"></script>
         <script src="web-audio.js"></script>
         <script src="geometry-sphere.js"></script>
+        <script src="geometry-md5.js"></script>
+        <script src="wasm-module.js"></script>
+        <script src="document-wait.js"></script>
+        <script src="card-drag.js"></script>
+        <script src="card-drop.js"></script>
     </head>
     <body>
         <web-audio _resume>
@@ -54,8 +59,15 @@
             <terrarium-image />
         </div>
 
+        <section>splash</section>
+
         <canvas>
-            <geometry-sphere></geometry-sphere>
+            <geometry-sphere>
+                <web-gl Uint16Array x-sphere-index buffer="[sphere-index]" target="ELEMENT_ARRAY_BUFFER" usage="STATIC_DRAW"/>
+                <web-gl x-sphere-position buffer="[sphere-position]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+                <web-gl x-sphere-normal buffer="[sphere-normal]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+                <web-gl x-sphere-uv buffer="[sphere-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            </geometry-sphere>
             <geometry-quad>
                 <span quad-position>
                     -1 +1 0
@@ -64,10 +76,10 @@
                     +1 -1 0
                 </span>
                 <span quad-uv>
-                    -1 +1 0
-                    -1 -1 0
-                    +1 +1 0
-                    +1 -1 0
+                    0 1 0
+                    0 0 0
+                    1 1 0
+                    1 0 0
                 </span>
                 <span quad-normal>
                     0 0 -1
@@ -76,8 +88,16 @@
                     0 0 -1
                 </span>
             </geometry-quad>
+            <geometry-md5 scale="0.01" src="/pak002/models/md5/chars/skeleton.md5mesh" 0="/pak002/models/md5/chars/npc_stagger_loop.md5anim">
+                <document-wait closest event="geometry-md5" web-gl x-md5-index buffer="[md5-index]" target="ELEMENT_ARRAY_BUFFER" usage="STATIC_DRAW"></document-wait>
+                <document-wait closest event="geometry-md5" web-gl x-md5-uv buffer="[md5-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW"></document-wait>
+                <document-wait closest event="geometry-md5" web-gl x-md5-position buffer="[md5-vert]" target="ARRAY_BUFFER" usage="DYNAMIC_DRAW"></document-wait>
+                <document-wait closest event="geometry-md5" web-gl x-md5-normal buffer="[md5-norm]" target="ARRAY_BUFFER" usage="DYNAMIC_DRAW"></document-wait>
+                <_document-wait closest event="geometry-md5" web-gl texture="[md5-joint-position]" target="TEXTURE_2D"></document-wait>
+                <_document-wait closest event="geometry-md5" web-gl texture="[md5-joint-orientation]" target="TEXTURE_2D"></document-wait>
+            </geometry-md5>
             
-            <web-gl id="vertex-shader">
+            <span id="vertex-shader">
                 uniform mat4 modelViewMatrix;
                 uniform mat4 projectionMatrix;
                 attribute vec3 pos;
@@ -85,14 +105,15 @@
                 varying vec2 uv;
                 varying vec3 rd;
                 void main() {
-                    vec4 p = vec4(pos, 1.0);
-                    //p.z += 1.0;
+                    vec4 p = modelViewMatrix*vec4(pos, 1.0);
+                    //for (int i = 0; i < NUM_BONES; ++i )="="
                     uv = p.xy*0.5+0.5;
-                    rd = nor;
-                    gl_Position = p;
+                    //rd = nor;
+                    rd = (modelViewMatrix*vec4(nor, 1.0)).xyz;
+                    gl_Position = projectionMatrix*p;
                 }
-            </web-gl>
-            <web-gl id="fragment-shader">
+            </span>
+            <span id="fragment-shader">
                 uniform sampler2D terrarium;
                 uniform sampler2D video;
                 varying vec2 uv;
@@ -108,6 +129,7 @@
                     vec2 ll = vec2(cos(p.x), sin(p.y));
 
                     gl_FragColor = vec4(uv, t, 1.0);
+                    //return;
                     //gl_FragColor = vec4(nor*0.5+0.5, 1.0);
                     gl_FragColor = vec4(ll, t, 1.0);
                     gl_FragColor = mix(
@@ -116,42 +138,46 @@
                         step(0.0, -t)
                     );
                 }
-            </web-gl>
+            </span>
             <web-gl shader="#vertex-shader" type="VERTEX_SHADER" />
             <web-gl shader="#fragment-shader" 0="toys.glsl" type="FRAGMENT_SHADER" />
 
-            <web-gl x-quad-position buffer="[quad-position]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
-            <web-gl x-quad-uv buffer="[quad-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
-            <web-gl x-quad-normal buffer="[quad-normal]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            <web-gl x-quad-position buffer="[quad-position]" target="ARRAY_BUFFER" usage="STATIC_DRAW">
+            </web-gl>
+            <web-gl x-quad-uv buffer="[quad-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW">
+            </web-gl>
+            <web-gl x-quad-normal buffer="[quad-normal]" target="ARRAY_BUFFER" usage="STATIC_DRAW">
+            </web-gl>
 
-            <web-gl Uint16Array x-sphere-index buffer="[sphere-index]" target="ELEMENT_ARRAY_BUFFER" usage="STATIC_DRAW"/>
-            <web-gl x-sphere-position buffer="[sphere-position]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
-            <web-gl x-sphere-normal buffer="[sphere-normal]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
-            <web-gl x-sphere-uv buffer="[sphere-uv]" target="ARRAY_BUFFER" usage="STATIC_DRAW" />
+            <web-gl x-terrarium-texture texture unit="1" image="terrarium-image>img" generate-mipmap texture-wrap-s="REPEAT" texture-wrap-t="MIRRORED_REPEAT" texture-min-filter="NEAREST" texture-mag-filter="NEAREST">
+            </web-gl>
+            <web-gl x-webcam-texture texture unit="2" video="#my-video" texture-min-filter="NEAREST" texture-mag-filter="NEAREST" texture-wrap-s="CLAMP_TO_EDGE" texture-wrap-t="CLAMP_TO_EDGE">
+            </web-gl>
 
-            <web-gl x-terrarium-texture texture unit="1" image="terrarium-image>img" generate-mipmap texture-wrap-s="REPEAT" texture-wrap-t="MIRRORED_REPEAT" texture-min-filter="NEAREST" texture-mag-filter="NEAREST" />
-            <web-gl x-webcam-texture texture unit="2" video="#my-video" texture-min-filter="NEAREST" texture-mag-filter="NEAREST" texture-wrap-s="CLAMP_TO_EDGE" texture-wrap-t="CLAMP_TO_EDGE" />
+            <web-gl front framebuffer texture image width="64" height="64"></web-gl>
+            <web-gl back framebuffer texture image width="64" height="64"></web-gl>
 
-            <web-gl front framebuffer texture image width="64" height="64" />
-            <web-gl back framebuffer texture image width="64" height="64" />
+            <web-gl program bind-framebuffer="[front]"></web-gl>
             
-            <web-gl program default-framebuffer/>
-            <web-gl sampler name="terrarium" source="[x-terrarium-texture]" />
-            <web-gl sampler name="video" source="[x-webcam-texture]" />
-            <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
-            <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
-            <web-gl vertex="[x-quad-position]" name="pos" count="3" type="FLOAT" />
-            <web-gl vertex="[x-quad-normal]" name="nor" count="3" type="FLOAT" />
-            <web-gl draw mode="TRIANGLE_STRIP" count="4" />
+            <web-gl program bind-framebuffer="[back]"></web-gl>
+            
+            <web-gl program default-framebuffer>
+                <web-gl sampler name="terrarium" source="[x-terrarium-texture]" />
+                <web-gl sampler name="video" source="[x-webcam-texture]" />
+                <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
+                <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
+                <web-gl vertex="[x-quad-position]" name="pos" count="3" type="FLOAT" />
+                <web-gl vertex="[x-quad-normal]" name="nor" count="3" type="FLOAT" />
+                <web-gl _draw mode="TRIANGLE_STRIP" count="4" />
+                <web-gl vertex="[x-sphere-position]" name="pos" count="3" type="FLOAT" />
+                <web-gl vertex="[x-sphere-normal]" name="nor" count="3" type="FLOAT" />
+                <web-gl draw elements="[x-sphere-index]" mode="TRIANGLES" count="2880" type="UNSIGNED_SHORT" />
+                <web-gl vertex="[x-md5-position]" name="pos" count="3" type="FLOAT" />
+                <web-gl vertex="[x-md5-normal]" name="nor" count="3" type="FLOAT" />
+                <web-gl draw elements="[x-md5-index]" mode="TRIANGLES" count="1528" type="UNSIGNED_SHORT" />
+            </web-gl>
 
-            <web-gl program default-framebuffer />
-            <web-gl sampler name="terrarium" source="[x-terrarium-texture]" />
-            <web-gl sampler name="video" source="[x-webcam-texture]" />
-            <web-gl uniform name="modelViewMatrix" 16f source="perspective-camera>[model-view-matrix]" />
-            <web-gl uniform name="projectionMatrix" 16f source="perspective-camera>[projection-matrix]" />
-            <web-gl vertex="[x-sphere-position]" name="pos" count="3" type="FLOAT" />
-            <web-gl vertex="[x-sphere-normal]" name="nor" count="3" type="FLOAT" />
-            <web-gl draw elements="[x-sphere-index]" mode="TRIANGLES" count="2880" type="UNSIGNED_SHORT" />
+            <wasm-module src="/build/readline.wasm" />
         </canvas>
         
         <svg>
@@ -171,6 +197,10 @@
             <input name="location" value="test" placeholder="placeholder" />
         </form>
 
+        <section>
+            <card-drag ondrop-out="alert('world')" style="display:block;position:absolute;width: 200px; height: 100px; background: red;"></card-drag>
+            <card-drop ondrop-in="alert('hello')" style="display:block;position:absolute;top: 200px;width: 200px; height: 100px; background: blue;"></card-drop>
+        </section>
 
         <video>
             <media-stream canvas />
@@ -188,7 +218,5 @@
                 <li kind></li>
             </media-devices>
         </web-audio>
-
-
     </body>
 </html>

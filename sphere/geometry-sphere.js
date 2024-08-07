@@ -99,6 +99,7 @@ customElements.define('geometry-sphere', class extends HTMLElement {
         iElement.innerHTML = indices.join(' ')
         this.appendChild(iElement)
 
-        this.setAttribute('count', `${indices.length}`)
+        this.setAttribute('num-verts', `${vertices.length}`)
+        this.setAttribute('num-tris', `${indices.length/3}`)
     }
 })
