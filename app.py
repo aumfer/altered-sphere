@@ -6,6 +6,7 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 from PIL import Image
 import io
 import numpy as np
+from flask import make_response, send_file
 
 app = Flask(__name__)
 CORS(app)
@@ -22,7 +23,7 @@ checkpoint = "../segment-anything-2/checkpoints/sam2_hiera_large.pt"
 model_cfg = "sam2_hiera_l.yaml"
 predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
 
-input_point = np.array([[500, 375]])
+input_point = np.array([[123, 321]])
 input_label = np.array([1])
 
 @app.route("/",methods=["POST"])
@@ -41,4 +42,14 @@ def hello_world():
         point_labels=input_label,
         multimask_output=True,
     )
-    return f"<p>Hello, World! {len(jpeg)} {file.getbuffer().nbytes}</p>"
+    sorted_ind = np.argsort(scores)[::-1]
+    masks = masks[sorted_ind]
+    scores = scores[sorted_ind]
+    logits = logits[sorted_ind]
+    mask_img = Image.frombytes('F', masks[0].shape, masks[0])
+    mask_img = mask_img.convert('L')
+    mask_file = io.BytesIO()
+    mask_img.save(mask_file, 'jpeg')
+    mask_file.seek(0)
+    print(f"{masks[0].shape} {scores[0]}")
+    return send_file(mask_file, 'image/jpeg')
